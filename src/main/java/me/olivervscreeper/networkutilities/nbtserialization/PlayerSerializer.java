@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 import org.cyberiantiger.minecraft.nbt.CompoundTag;
 import org.cyberiantiger.minecraft.nbt.TagInputStream;
@@ -52,12 +53,11 @@ public class PlayerSerializer {
     }
 
     /**
-     * Deserialize an array of items, from a byte array.
+     * Deserialize a player's data, and restore it to the player.
      * 
      * @param player the player to load the data into
      * @param data the data to deserialize
      * @param compress If true, gzip decompress the data
-     * @return the ItemStack array.
      * @throws IllegalStateException If there is an error reading the data.
      */
     public void deserializePlayer(Player player, byte[] data, boolean compress) {
@@ -108,4 +108,73 @@ public class PlayerSerializer {
             throw new IllegalStateException(ioe);
         }
     }
+
+    /**
+     * Deserialize an array of items, from a byte array.
+     * 
+     * @param player the player to load the data into
+     * @param data the data to deserialize
+     * @param compress If true, gzip decompress the data
+     * @return the ItemStack array.
+     * @throws IllegalStateException If there is an error reading the data.
+     */
+    public ItemStack[] deserializeItemStacks(byte[] data, boolean compress) {
+        ByteArrayInputStream inRaw = new ByteArrayInputStream(data);
+        try {
+            InputStream in;
+            if (compress) {
+                in = new GZIPInputStream(inRaw);
+            } else {
+                in = inRaw;
+            }
+            TagInputStream tagIn = new TagInputStream(in);
+            int count = tagIn.readInt();
+            ItemStack[] result = new ItemStack[count];
+            for (int i = 0; i < count; i++) {
+                CompoundTag tag = (CompoundTag) tagIn.readTag();
+                if (tag != null) {
+                    result[i] = tools.createItemStack(tag);
+                }
+            }
+            return result;
+        } catch (IOException ioe) {
+            throw new IllegalStateException(ioe);
+        } catch (ClassCastException cce) {
+            throw new IllegalStateException(cce);
+        }
+    }
+
+    /**
+     * Serialize item stacks
+     * 
+     * @param items The items to serialize
+     * @param compress If true, compress the data
+     * @return the serialized data
+     * @throws IllegalStateException if any errors occur
+     */
+    public byte[] serializeItemStacks(ItemStack[] items, boolean compress) {
+        ByteArrayOutputStream outRaw = new ByteArrayOutputStream();
+        try {
+            OutputStream out;
+            if (compress) {
+                out = new GZIPOutputStream(outRaw);
+            } else {
+                out = outRaw;
+            }
+            TagOutputStream tagOut = new TagOutputStream(out);
+            tagOut.writeInt(items.length);
+            for (ItemStack item : items) {
+                if (item == null) {
+                    tagOut.writeTag(null);
+                } else {
+                    tagOut.writeTag(tools.readItemStack(item));
+                }
+            }
+            tagOut.close();
+            return outRaw.toByteArray();
+        } catch (IOException ioe) {
+            throw new IllegalStateException(ioe);
+        }
+    }
+
 }
